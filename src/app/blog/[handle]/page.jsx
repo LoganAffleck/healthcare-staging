@@ -25,23 +25,16 @@ export default async function BlogArticle(props) {
 
   // Fetch all content in parallel for better performance
   const [content, header, footer] = await Promise.all([
-    builder
-      .get(builderModelName, {
-        userAttributes: { urlPath },
-        options: { cachebust: true },
-        query: { 'data.handle': params?.handle }, // Ensure we fetch by handle
-      })
-      .toPromise(),
-    builder
-      .get("symbol", {
-        query: { name: "Header" },
-      })
-      .toPromise(),
-    builder
-      .get("symbol", {
-        query: { name: "Footer" },
-      })
-      .toPromise(),
+    fetchBuilderContent(builderModelName, {
+      userAttributes: { urlPath },
+      query: { 'data.handle': params?.handle },
+    }),
+    fetchBuilderContent("symbol", {
+      query: { name: "Header" },
+    }),
+    fetchBuilderContent("symbol", {
+      query: { name: "Footer" },
+    }),
   ]);
 
   // Extract article data with default values
@@ -54,10 +47,6 @@ export default async function BlogArticle(props) {
     readTime: content?.data?.readTime || "5 min read",
     publishDate: content?.data?.publishDate || new Date().toISOString(),
   };
-
-  if (process.env.NODE_ENV === "development") {
-    console.log(content);
-  }
 
   return (
     <>
