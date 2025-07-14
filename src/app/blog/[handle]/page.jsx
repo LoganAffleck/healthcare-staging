@@ -1,98 +1,91 @@
 import React from "react";
 import { builder } from "@builder.io/sdk";
-import Link from "next/link";
 import { RenderBuilderContent } from "../../../components/builder";
+import BlogHero from "@/components/BlogHero";
 import "./styles.css";
 
 export const dynamic = "force-dynamic";
 
+// Initialize Builder once at module level
 builder.init(process.env.NEXT_PUBLIC_BUILDER_API_KEY);
 
-const ARTICLES_PER_PAGE = 15;
+// Constants
+const BUILDER_MODEL_NAME = "blog-article";
+const HEADER_HEIGHT = "90px";
+
+// Helper function to fetch Builder content
+async function fetchBuilderContent(modelName, options = {}) {
+  return builder.get(modelName, options).toPromise();
+}
 
 export default async function BlogArticle(props) {
-  // Builder Public API Key set in .env file
-  builder.init(process.env.NEXT_PUBLIC_BUILDER_API_KEY);
-  const builderModelName = "blog-article";
-  let params = await props?.params;
+  const builderModelName = BUILDER_MODEL_NAME;
+  const params = await props?.params;
+  const urlPath = "/" + (params?.page?.join("/") || "");
 
-  const content = await builder
-    // Get the page content from Builder with the specified options
-    .get(builderModelName, {
-      userAttributes: {
-        // Use the page path specified in the URL to fetch the content
-        urlPath: "/" + (params?.page?.join("/") || ""),
-      },
-    })
-    // Convert the result to a promise
-    .toPromise();
+  // Fetch all content in parallel for better performance
+  const [content, header, footer] = await Promise.all([
+    fetchBuilderContent(builderModelName, {
+      userAttributes: { urlPath },
+    }),
+    fetchBuilderContent("symbol", {
+      query: { name: "Header" },
+    }),
+    fetchBuilderContent("symbol", {
+      query: { name: "Footer" },
+    }),
+  ]);
 
-  const header = await builder
-    // Get the page content from Builder with the specified options
-    .get("symbol", {
-      query: {
-        name: "Header",
-      },
-    })
-    // Convert the result to a promise
-    .toPromise();
-
-  const hero = await builder
-    // Get the page content from Builder with the specified options
-    .get("article-hero")
-    // Convert the result to a promise
-    .toPromise();
-
-  const footer = await builder
-    // Get the page content from Builder with the specified options
-    .get("symbol", {
-      query: {
-        name: "Footer",
-      },
-    })
-    // Convert the result to a promise
-    .toPromise();
-
-  let articleContent = {
-    title: content?.data?.title,
-    heroImage: content?.data?.image,
-    description: content?.data?.description,
-    author: content?.data?.author,
-    category: content?.data?.category,
-    readTime: content?.data?.readTime,
-    publishDate: content?.data?.publishDate,
+  // Extract article data with default values
+  const articleContent = {
+    title: content?.data?.title || "Untitled Article",
+    heroImage: content?.data?.image || "",
+    description: content?.data?.description || "",
+    author: content?.data?.author || "Unknown Author",
+    category: content?.data?.category || "General",
+    readTime: content?.data?.readTime || "5 min read",
+    publishDate: content?.data?.publishDate || new Date().toISOString(),
   };
 
-  console.log("Article content:", articleContent);
+  if (process.env.NODE_ENV === "development") {
+    console.log("Article content:", articleContent);
+  }
 
   return (
     <>
-      <div
-        style={{
-          position: "fixed",
-          width: "100vw",
-          top: 0,
-          left: 0,
-          zIndex: 1000,
-        }}
-      >
-        <RenderBuilderContent content={header} model={"symbol"} />
-      </div>
-      <div style={{ paddingTop: "90px" }}></div>
-      <RenderBuilderContent
-        content={hero}
-        model={"article-hero"}
-        data={articleContent}
-      />
-      <section className="article-section">
-        <div
-          className="article-content"
-        >
-          <RenderBuilderContent content={content} model={builderModelName} />
-        </div>
-      </section>
-
-      <RenderBuilderContent content={footer} model={"symbol"} />
+      <FixedHeader header={header} />
+      <div style={{ paddingTop: HEADER_HEIGHT }} />
+      <BlogHero {...articleContent} />
+      <ArticleContent content={content} modelName={builderModelName} />
+      <RenderBuilderContent content={footer} model="symbol" />
     </>
+  );
+}
+
+// Component for the fixed header
+function FixedHeader({ header }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        width: "100vw",
+        top: 0,
+        left: 0,
+        zIndex: 1000,
+      }}
+    >
+      <RenderBuilderContent content={header} model="symbol" />
+    </div>
+  );
+}
+
+// Component for the article content section
+function ArticleContent({ content, modelName }) {
+  return (
+    <section className="article-section">
+      <div className="article-content">
+        <RenderBuilderContent content={content} model={modelName} />
+      </div>
+    </section>
   );
 }
